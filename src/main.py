@@ -13,6 +13,8 @@ TARGET_URL = "http://localhost:8000/api/recieve_summary"
 # TODO: change the API url i dont like how it looks
 @app.post("/action/")
 async def process_action(request: Request):
+    # TODO: add authentication
+    
     data = await request.json()
     
     try:

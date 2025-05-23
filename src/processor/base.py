@@ -11,5 +11,5 @@ class Processor:
     def get_relevant_content(self, action: SummaryAction) -> bool:
         return action.content[self.name]
     
-    async def resolve(self, content: any, summaries: list[Summary]):
+    async def resolve(self, content: any, summaries: list[Summary]) -> bool:
         raise NotImplementedError
