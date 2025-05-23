@@ -7,8 +7,10 @@ from .content import standardize_content
 
 app = FastAPI()
 
+# example target url
 TARGET_URL = "http://localhost:8000/api/recieve_summary"
 
+# TODO: change the API url i dont like how it looks
 @app.post("/action/")
 async def process_action(request: Request):
     data = await request.json()

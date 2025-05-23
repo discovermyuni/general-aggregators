@@ -4,7 +4,7 @@ from .action import SummaryAction, Summary, SummarySource
 from .processor.text import TextProcessor
 # from .processor.image import ImageProcessor
 
-# example settings url
+# example settings file url
 TARGET_URL = "http://localhost:8000/api/fetch_source"
 ALL_PROCESSORS = [TextProcessor]
 
@@ -18,6 +18,7 @@ async def _obtain_source(source_key: str) -> SummarySource:
 
 
 async def count_events(action: SummaryAction, source: SummarySource, target_url: str) -> int:
+    # simulate the counting (needs to be done via LLM, possibly a lighter variant)
     return 1
 
 
