@@ -1,5 +1,3 @@
-from typing import Optional
-
 class SummaryAction:
     def __init__(self, content: dict[str, any], source_key: str):
         self.content = content
@@ -21,15 +19,16 @@ class SummarySource:
 
 class Summary:
     REQUIRED_ATTRIBUTES = ['title', 'description', 'location', 'start_date']
+    OPTIONAL_ATTRIBUTES = ['end_date']
     
     def __init__(
         self,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        source: Optional[SummarySource] = None,
-        location: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        title: str = "",
+        description: str = "",
+        source: SummarySource = None,
+        location: str = "",
+        start_date: str = "",
+        end_date: str = ""
     ):
         self.title = title
         self.description = description
@@ -40,8 +39,15 @@ class Summary:
         self.source = source
         self.modifiers = {}
         
+    def as_dict(self):
+        d = {}
+        for attr in Summary.REQUIRED_ATTRIBUTES + Summary.OPTIONAL_ATTRIBUTES:
+            value = getattr(self, attr, "")
+            d[attr] = value
+        return d
+    
     def get_missing_attributes(self):
-        return [item for item in Summary.REQUIRED_ATTRIBUTES if getattr(self, item) is None]
+        return [item for item in Summary.REQUIRED_ATTRIBUTES if getattr(self, item) in (None, "")]
     
     def is_complete(self):
         return not self.get_missing_attributes()

@@ -1,15 +1,18 @@
-from typing import Optional
 from .action import SummaryAction, Summary, SummarySource
 
 from .processor.text import TextProcessor
+import aiohttp
+import os
 # from .processor.image import ImageProcessor
 
 # example settings file url
-TARGET_URL = "http://localhost:8000/api/fetch_source"
+SOURCE_URL = "http://localhost:8000/api/fetch_source"
+PUBLISH_URL = "http://localhost:8000/api/publish_summary"
 ALL_PROCESSORS = [TextProcessor]
 
+
 def get_target_url(source_key: str) -> str:
-    return f"{TARGET_URL}?s={source_key}"
+    return f"{SOURCE_URL}?s={source_key}"
 
 
 async def _obtain_source(source_key: str) -> SummarySource:
@@ -19,10 +22,10 @@ async def _obtain_source(source_key: str) -> SummarySource:
 
 async def count_events(action: SummaryAction, source: SummarySource, target_url: str) -> int:
     # simulate the counting (needs to be done via LLM, possibly a lighter variant)
-    return 1
+    return 2
 
 
-async def standardize_content(action: SummaryAction) -> Optional[Summary]:
+async def standardize_content(action: SummaryAction) -> list[Summary]:
     source = await _obtain_source(action.source_key)
     summary = Summary(source=source)
     
@@ -74,5 +77,22 @@ async def standardize_content(action: SummaryAction) -> Optional[Summary]:
     return summaries
 
 
-async def send_content(summary: Summary, target_url: str):
-    pass
+async def send_content(action: SummaryAction, summaries: list[Summary], target_url: str):
+    API_KEY = os.getenv("API_KEY")
+
+    async with aiohttp.ClientSession() as session:
+        payload = {
+            "source_key": action.source_key,
+            "summaries": [s.get_as_dict() for s in summaries],
+        }
+        
+        headers = {
+            "Content-Type": "application/json",
+            "apikey": API_KEY,
+        }
+        
+        async with session.post(PUBLISH_URL, json=payload, headers=headers) as resp:
+            if resp.status != 200:
+                print(f"Failed to send content: {resp.status} {await resp.text()}")
+            else:
+                print("Content sent successfully.")

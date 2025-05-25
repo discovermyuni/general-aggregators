@@ -36,4 +36,6 @@ async def process_queue():
     while True:
         action = await dequeue()
         print(f"Processing: {action}")
-        await standardize_content(action)
+        summaries = await standardize_content(action)
+        print(f"Standardized content: {summaries}")
+
