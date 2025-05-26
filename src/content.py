@@ -1,5 +1,6 @@
 from .action import SummaryAction, Summary, SummarySource
 
+from .processor import Processor
 from .processor.text import TextProcessor
 import aiohttp
 import os
@@ -20,22 +21,28 @@ async def _obtain_source(source_key: str) -> SummarySource:
     return SummarySource(key=source_key, title="Sample Title", background="Sample Background")
 
 
-async def count_events(action: SummaryAction, source: SummarySource, target_url: str) -> int:
-    # simulate the counting (needs to be done via LLM, possibly a lighter variant)
-    return 2
+async def get_event_titles(action: SummaryAction, processors: list[Processor]) -> list[str]:
+    current_titles = []
+    
+    for processor in processors:
+        if not processor.has_relevant_content(action.content):
+            continue
+        
+        relevant_content = processor.get_relevant_content(action.content)
+        titles = await processor.get_titles(relevant_content, current_titles)
+        
+        if not titles:
+            continue
+        
+        current_titles.extend(titles)
+    
+    return titles
 
 
 async def standardize_content(action: SummaryAction) -> list[Summary]:
     source = await _obtain_source(action.source_key)
     summary = Summary(source=source)
-    
-    # Count the number of events (to simplify the token-intensive processing)
-    count = await count_events(action, source, get_target_url(source.key))
-    if count <= 0:
-        print("No possible events found in action.")
-        return None
-    print(f"Expecting {count} summaries from action.")
-    
+
     # Add all relevant processors for the various content types
     # (i.e. text, image, etc.)
     processors = []
@@ -43,8 +50,17 @@ async def standardize_content(action: SummaryAction) -> list[Summary]:
         if p.name in action.content:
             processors.append(p())
 
-    # Initialize blank summaries (to carry over and re-assign less)
-    summaries = [Summary(source=source) for _ in range(count)]
+    # Count the number of events and their titles (to avoid duplicant summaries between processors)
+    titles = await get_event_titles(action, processors)
+    count = len(titles)
+    if count <= 0:
+        print("No possible events found in action.")
+        return None
+    print(f"Expecting {count} summaries from action.")
+    
+
+    # Initialize mostly blank summaries
+    summaries = [Summary(title=title, source=source) for title in titles]
     
     # Keep trying until all the summaries are complete or all processors are exhausted
     for processor in processors:

@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 import logging
 from datetime import datetime
 import aiohttp
@@ -32,13 +33,54 @@ class TextProcessor(Processor):
             "temperature": TEXT_PROCESSOR_TEMPERATURE,
         }
 
+
+    async def _query_llm_for_json(self, payload: dict) -> Optional[str]:
+        """Query the LLM with the given payload."""
+        headers = {"Authorization": f"Bearer {TEXT_PROCESSOR_API_KEY}", "Content-Type": "application/json"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    TEXT_PROCESSOR_LLM_URL, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=20)
+                ) as response:
+                    response.raise_for_status()
+                    response_json = await response.json()
+                    completion = response_json["choices"][0]["message"]["content"].strip()
+                    return json.loads(completion.strip())
+
+        except aiohttp.ClientError as e:
+            logger.exception("Error fetching data from LLM", exc_info=e)
+        except KeyError as e:
+            logger.exception("Error in API response", exc_info=e)
+        except json.JSONDecodeError as e:
+            logger.exception("Error parsing JSON response", exc_info=e)
+        return None
+    
+    
+    async def get_titles(self, content: str, previous_titles: list[str] = []) -> list[str]:
+        recognition_text = "Some events have already been recognized, so do not count them again. \
+Here are the previously recognized events by title: {'\n-'.join(previous_titles)}.\nRemember to only count the new events in the text below."
+
+        prompt = f"""Count the number of events in the text below. ONLY return the number of recognized events as a number (i.e. 0, 1, 6).
+Do not add any other text or explanation. 
+{recognition_text if previous_titles else ""}
+
+Text to count events in:
+{content}
+        """
+        print("COUNT PROMPT:\n", prompt)
+        payload = self._create_payload(content, prompt)
+        return await self._query_llm_for_json(payload)
+
+
     def _create_prompt(self, content: str, summaries: list[Summary]) -> str:
         """Create the prompt for the LLM request."""
             
         prompt = f"""Extract event details into JSON objects from text at the bottom and fill in the missing fields for each event. Return it in a JSON array.
 
+You are already given the titles of the events that have been recognized in the text, fill in the details for each event based on the text below.
+
 All dates should be in the format YYYY-MM-DD hh:mm (24-hour format like 2025-02-28 13:00). If relative time is given (e.g., "tomorrow", "next week"), 
-convert it to an absolute date based on today's date, which is {datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M")}. Keep titles and descriptions at a maximum of 100 characters.
+convert it to an absolute date based on today's date, which is {datetime.now(TIMEZONE).strftime("%Y-%m-%d %H:%M")}. Keep descriptions concise but cover all important details.
 
 Locations can be given as rooms, buildings or addresses, but should be standardized to a single location string (e.g., "Room MN2710", "ABC", "Campus", "5838 George Dr").
 
@@ -55,9 +97,8 @@ The keys are: {", ".join(Summary.REQUIRED_ATTRIBUTES)}, {", ".join([s + " (optio
 Text to parse: 
 {content}
 """
-
         return prompt
-
+        
     def matches_content(self, action: SummaryAction) -> bool:
         """Check if the processor can handle the content type."""
         return super().matches_content(action) and isinstance(action.content[self.name], str)
@@ -65,34 +106,10 @@ Text to parse:
     async def resolve(self, content: str, summaries: list[Summary]) -> bool:
         """Process the text."""
         # TODO: Check for TOKEN_LIMIT + prompt length
-
         prompt = self._create_prompt(content, summaries)
         print("PROMPT:\n", prompt)
-        
         payload = self._create_payload(content, prompt)
-
-        headers = {"Authorization": f"Bearer {TEXT_PROCESSOR_API_KEY}", "Content-Type": "application/json"}
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    TEXT_PROCESSOR_LLM_URL, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=20)
-                ) as response:
-                    response.raise_for_status()
-                    response_json = await response.json()
-                    completion = response_json["choices"][0]["message"]["content"].strip()
-                    data = json.loads(completion.strip())
-                    print("Response from LLM:", data)
-
-        except aiohttp.ClientError as e:
-            logger.exception("Error fetching data from LLM", exc_info=e)
-            return False
-        except KeyError as e:
-            logger.exception("Error in API response", exc_info=e)
-            return False
-        except json.JSONDecodeError as e:
-            logger.exception("Error parsing JSON response", exc_info=e)
-            return False
-
+        data = await self._query_llm_for_json(payload)
 
         for i, obj in enumerate(data):
             if i >= len(summaries):
@@ -107,4 +124,6 @@ Text to parse:
             summary.start_date = obj.get("start_date")
             if obj.get("end_date") not in (None, ""):
                 summary.end_date = obj.get("end_date")
+                
+        return True
 
