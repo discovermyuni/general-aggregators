@@ -1,9 +1,9 @@
 import os
-from pytz import timezone
+from zoneinfo import ZoneInfo
 
 API_KEY = os.getenv("API_KEY")
 
-TIMEZONE = timezone("Canada/Eastern")
+TIMEZONE = ZoneInfo("Canada/Eastern")
 
 SOURCE_URL = "https://example.com/source"
 

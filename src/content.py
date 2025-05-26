@@ -1,14 +1,13 @@
+import logging
 from .action import SummaryAction, Summary, SummarySource
 
-from .processor import Processor
-from .processor.text import TextProcessor
+from .processor import Processor, ALL_PROCESSORS
 import aiohttp
 from .settings_store import get_setting
 
+logger = logging.getLogger("aggregator")
 
 SOURCE_URL = get_setting("SOURCE_URL")
-
-ALL_PROCESSORS = [TextProcessor]
 
 
 async def _obtain_source(source_key: str) -> SummarySource:
@@ -49,9 +48,9 @@ async def standardize_content(action: SummaryAction) -> list[Summary]:
     titles = await get_event_titles(action, processors)
     count = len(titles)
     if count <= 0:
-        print("No possible events found in action.")
+        logger.info("No possible events found in action.")
         return None
-    print(f"Expecting {count} summaries from action.")
+    logger.info(f"Expecting {count} summaries from action.")
     
 
     # Initialize mostly blank summaries
@@ -66,7 +65,7 @@ async def standardize_content(action: SummaryAction) -> list[Summary]:
         await processor.resolve(matching_content, summaries)
     
         if all([s.is_complete() for s in summaries]):
-            print("All summaries are complete early.")
+            logger.info("All summaries are complete early.")
             break
     else:
         # Take the the ones that are complete (if any)
@@ -76,15 +75,15 @@ async def standardize_content(action: SummaryAction) -> list[Summary]:
                 complete_summaries.append(summary)
             else:
                 missing_attributes = summary.get_missing_attributes()
-                print(f"Missing attributes in summary {i}: {', '.join(missing_attributes)}")
+                logger.warning(f"Missing attributes in summary {i}: {', '.join(missing_attributes)}")
         
         summaries = complete_summaries
     
     if not summaries:
-        print("No complete summaries found.")
+        logger.info("No complete summaries found.")
         return None
     
-    print(f"Found {len(summaries)} complete summaries (of expected {count}) from {action.source_key} action.")
+    logger.info(f"Found {len(summaries)} complete summaries (of expected {count}) from {action.source_key} action.")
     return summaries
 
 
@@ -102,6 +101,6 @@ async def send_content(action: SummaryAction, summaries: list[Summary], publish_
         
         async with session.post(target_url, json=payload, headers=headers) as resp:
             if resp.status != 200:
-                print(f"Failed to send content: {resp.status} {await resp.text()}")
+                logger.error(f"Failed to send content: {resp.status} {await resp.text()}")
             else:
-                print("Content sent successfully.")
+                logger.info("Content sent successfully.")

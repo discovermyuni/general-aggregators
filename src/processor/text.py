@@ -3,7 +3,6 @@ from typing import Optional
 import logging
 from datetime import datetime
 import aiohttp
-from pytz import timezone
 
 from .base import Processor
 from ..action import Summary, SummaryAction
@@ -11,9 +10,9 @@ from ..action import Summary, SummaryAction
 from ..settings_store import get_setting, get_setting_or_default
 
 
-logger = logging.getLogger("text_processor")
+logger = logging.getLogger("aggregator.text_processor")
 
-TIMEZONE = get_setting("TIMEZONE", timezone("Canada/Eastern"))
+TIMEZONE = get_setting("TIMEZONE")
 TEXT_PROCESSOR_MODEL = get_setting_or_default("TEXT_PROCESSOR_MODEL", "gpt-4-turbo")
 TEXT_PROCESSOR_MAX_TOKENS = get_setting_or_default("TEXT_PROCESSOR_MAX_TOKENS", 4096)
 TEXT_PROCESSOR_TEMPERATURE = get_setting_or_default("TEXT_PROCESSOR_TEMPERATURE", 0.0)

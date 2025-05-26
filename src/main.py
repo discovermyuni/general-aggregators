@@ -1,12 +1,17 @@
 from fastapi import FastAPI, Response, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
+import logging
 
 from .action import SummaryAction
 from .queue import enqueue, dequeue
 from .content import standardize_content
 
 from .settings_store import get_setting
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("aggregator")
 
 app = FastAPI()
 
@@ -53,7 +58,6 @@ async def startup():
 async def process_queue():
     while True:
         action = await dequeue()
-        print(f"Processing: {action}")
+        logger.info(f"Processing: {action}")
         summaries = await standardize_content(action)
-        print(f"Standardized content: {summaries}")
-
+        logger.info(f"Standardized content: {summaries}")
