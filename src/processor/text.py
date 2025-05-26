@@ -8,15 +8,18 @@ from pytz import timezone
 from .base import Processor
 from ..action import Summary, SummaryAction
 
+from ..settings_store import get_setting, get_setting_or_default
+
 
 logger = logging.getLogger("text_processor")
 
-TIMEZONE = timezone("Canada/Eastern")
-TEXT_PROCESSOR_MODEL = "gpt-4-turbo"
-TEXT_PROCESSOR_MAX_TOKENS = 500
-TEXT_PROCESSOR_TEMPERATURE = 0.0
-TEXT_PROCESSOR_API_KEY = "jarjarbinks"
-TEXT_PROCESSOR_LLM_URL = "https://api.openai.com/v1/chat/completions"
+TIMEZONE = get_setting("TIMEZONE", timezone("Canada/Eastern"))
+TEXT_PROCESSOR_MODEL = get_setting_or_default("TEXT_PROCESSOR_MODEL", "gpt-4-turbo")
+TEXT_PROCESSOR_MAX_TOKENS = get_setting_or_default("TEXT_PROCESSOR_MAX_TOKENS", 4096)
+TEXT_PROCESSOR_TEMPERATURE = get_setting_or_default("TEXT_PROCESSOR_TEMPERATURE", 0.0)
+TEXT_PROCESSOR_LLM_URL = get_setting_or_default("TEXT_PROCESSOR_LLM_URL", "https://api.openai.com/v1/chat/completions")
+TEXT_PROCESSOR_API_KEY = get_setting("TEXT_PROCESSOR_API_KEY")
+
 
 class TextProcessor(Processor):
     name = "text"
@@ -27,8 +30,8 @@ class TextProcessor(Processor):
     def _create_payload(self, prompt: str):
         """Create the payload for the LLM request."""
         return {
-            "model": TEXT_PROCESSOR_MODEL,
             "messages": [{"role": "system", "content": prompt}],
+            "model": TEXT_PROCESSOR_MODEL,
             "max_tokens": TEXT_PROCESSOR_MAX_TOKENS,
             "temperature": TEXT_PROCESSOR_TEMPERATURE,
         }
@@ -106,6 +109,7 @@ Text to parse:
     async def resolve(self, content: str, summaries: list[Summary]) -> bool:
         """Process the text."""
         # TODO: Check for TOKEN_LIMIT + prompt length
+        # TODO: make use of source background info
         prompt = self._create_prompt(content, summaries)
         print("PROMPT:\n", prompt)
         payload = self._create_payload(content, prompt)

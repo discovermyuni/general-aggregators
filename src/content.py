@@ -3,21 +3,16 @@ from .action import SummaryAction, Summary, SummarySource
 from .processor import Processor
 from .processor.text import TextProcessor
 import aiohttp
-import os
-# from .processor.image import ImageProcessor
+from .settings_store import get_setting
 
-# example settings file url
-SOURCE_URL = "http://localhost:8000/api/fetch_source"
-PUBLISH_URL = "http://localhost:8000/api/publish_summary"
+
+SOURCE_URL = get_setting("SOURCE_URL")
+
 ALL_PROCESSORS = [TextProcessor]
 
 
-def get_target_url(source_key: str) -> str:
-    return f"{SOURCE_URL}?s={source_key}"
-
-
 async def _obtain_source(source_key: str) -> SummarySource:
-    # simulate fetching source data from main thing
+    # TODO: implement this AND organization contextual data (like this is a university, etc.)
     return SummarySource(key=source_key, title="Sample Title", background="Sample Background")
 
 
@@ -93,9 +88,7 @@ async def standardize_content(action: SummaryAction) -> list[Summary]:
     return summaries
 
 
-async def send_content(action: SummaryAction, summaries: list[Summary], target_url: str):
-    API_KEY = os.getenv("API_KEY")
-
+async def send_content(action: SummaryAction, summaries: list[Summary], publish_api_key: str, target_url: str):
     async with aiohttp.ClientSession() as session:
         payload = {
             "source_key": action.source_key,
@@ -104,10 +97,10 @@ async def send_content(action: SummaryAction, summaries: list[Summary], target_u
         
         headers = {
             "Content-Type": "application/json",
-            "apikey": API_KEY,
+            "Header": f"Api-Key {publish_api_key}",
         }
         
-        async with session.post(PUBLISH_URL, json=payload, headers=headers) as resp:
+        async with session.post(target_url, json=payload, headers=headers) as resp:
             if resp.status != 200:
                 print(f"Failed to send content: {resp.status} {await resp.text()}")
             else:

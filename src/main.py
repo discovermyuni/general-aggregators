@@ -1,19 +1,37 @@
-from fastapi import FastAPI, Response, Request
+from fastapi import FastAPI, Response, Request, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 
 from .action import SummaryAction
 from .queue import enqueue, dequeue
 from .content import standardize_content
 
+from .settings_store import get_setting
+
 app = FastAPI()
 
-# example target url
-TARGET_URL = "http://localhost:8000/api/recieve_summary"
+API_KEY = get_setting("API_KEY")
+ALLOWED_ORIGINS = get_setting("ALLOWED_ORIGINS")
 
-# TODO: change the API url i dont like how it looks
-@app.post("/action/")
-async def process_action(request: Request):
-    # TODO: add authentication
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
+
+@app.post("/process_action/")
+async def process_action(request: Request, authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+
+    if not authorization.startswith("Api-Key "):
+        raise HTTPException(status_code=403, detail="Invalid auth scheme")
+
+    api_key = authorization.removeprefix("Api-Key ").strip()
+    if api_key != API_KEY:
+        return Response(status_code=401, content="Invalid or incorrect API key provided for authorization.")
     
     data = await request.json()
     
