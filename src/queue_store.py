@@ -21,3 +21,4 @@ def queue_size():
 
 def is_empty():
     return _queue.empty()
+

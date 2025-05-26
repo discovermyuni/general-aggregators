@@ -1,12 +1,17 @@
-from fastapi import FastAPI, Response, Request, Header, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import logging
 
-from .action import SummaryAction
-from .queue import enqueue, dequeue
-from .content import standardize_content
+from fastapi import FastAPI
+from fastapi import Header
+from fastapi import HTTPException
+from fastapi import Request
+from fastapi import Response
+from fastapi.middleware.cors import CORSMiddleware
 
+from .action import SummaryAction
+from .content import standardize_content
+from .queue_store import dequeue
+from .queue_store import enqueue
 from .settings_store import get_setting
 
 # Set up logging
@@ -37,27 +42,31 @@ async def process_action(request: Request, authorization: str = Header(None)):
     api_key = authorization.removeprefix("Api-Key ").strip()
     if api_key != API_KEY:
         return Response(status_code=401, content="Invalid or incorrect API key provided for authorization.")
-    
+
     data = await request.json()
-    
+
     try:
         content = data["content"]
         source = data["source"]
     except KeyError as e:
         return Response(status_code=400, content=f"Missing key: {e}")
-    
+
     await enqueue(SummaryAction(content, source))
     return Response(status_code=200, content="Action queued.")
 
 
+background_tasks = set()
+
 @app.on_event("startup")
 async def startup():
-    asyncio.create_task(process_queue())
+    task = asyncio.create_task(process_queue())
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
 
 
 async def process_queue():
     while True:
         action = await dequeue()
-        logger.info(f"Processing: {action}")
+        logger.info("Processing: %s", action)
         summaries = await standardize_content(action)
-        logger.info(f"Standardized content: {summaries}")
+        logger.info("Standardized content: %s", summaries)

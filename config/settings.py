@@ -1,6 +1,11 @@
 import os
 from zoneinfo import ZoneInfo
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 API_KEY = os.getenv("API_KEY")
 
 TIMEZONE = ZoneInfo("Canada/Eastern")
