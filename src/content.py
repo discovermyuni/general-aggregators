@@ -26,10 +26,13 @@ async def _obtain_source(source_key: str) -> SummarySource | None:
             org_background = data.get("org_background") if "org_background" in data else None
             return SummarySource(key=key, title=title, background=background, org_background=org_background)
     except aiohttp.ClientError:
-        logger.exception("Failed to fetch source data")
+        logger.exception("Failed to fetch source data for key: %s", source_key)
         return None
     except aiohttp.ContentTypeError:
-        logger.exception("Failed to parse JSON from source")
+        logger.exception("Failed to parse JSON from source for key: %s", source_key)
+        return None
+    except KeyError:
+        logger.exception("Missing key in source data for key: %s", source_key)
         return None
 
 
@@ -37,10 +40,10 @@ async def get_event_titles(action: SummaryAction, processors: list[Processor]) -
     current_titles = []
 
     for processor in processors:
-        if not processor.has_relevant_content(action.content):
+        if not processor.has_relevant_content(action):
             continue
 
-        relevant_content = processor.get_relevant_content(action.content)
+        relevant_content = processor.get_relevant_content(action)
         titles = await processor.get_titles(relevant_content, current_titles)
 
         if not titles:
@@ -52,15 +55,17 @@ async def get_event_titles(action: SummaryAction, processors: list[Processor]) -
 
 
 async def standardize_content(action: SummaryAction) -> list[Summary]:
-    source = await _obtain_source(action.source_key)
-    summary = Summary(source=source)
-
     # Add all relevant processors for the various content types
     # (i.e. text, image, etc.)
     processors = [p() for p in ALL_PROCESSORS if p.name in action.content]
 
     # Count the number of events and their titles (to avoid duplicant summaries between processors)
     titles = await get_event_titles(action, processors)
+    if not titles:
+        logger.info("No titles found in action content.")
+        return []
+    logger.debug("Recieved titles %s.", titles)
+
     count = len(titles)
     if count <= 0:
         logger.info("No possible events found in action.")
@@ -68,6 +73,8 @@ async def standardize_content(action: SummaryAction) -> list[Summary]:
     logger.info("Expecting %d summaries from action.", count)
 
     # Initialize mostly blank summaries
+    # source = await _obtain_source(action.source_key)
+    source = None
     summaries = [Summary(title=title, source=source) for title in titles]
 
     # Keep trying until all the summaries are complete or all processors are exhausted

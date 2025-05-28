@@ -2,47 +2,44 @@ import asyncio
 import logging
 
 from fastapi import FastAPI
-from fastapi import Header
 from fastapi import HTTPException
 from fastapi import Request
 from fastapi import Response
+from fastapi import Security
+from fastapi import status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 
-from .action import SummaryAction
-from .content import standardize_content
-from .queue_store import dequeue
-from .queue_store import enqueue
-from .settings_store import get_setting
+from src.action import SummaryAction
+from src.content import standardize_content
+from src.queue_store import dequeue
+from src.queue_store import enqueue
+from src.settings_store import get_setting
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("aggregator")
 
 app = FastAPI()
 
-API_KEY = get_setting("API_KEY")
-ALLOWED_ORIGINS = get_setting("ALLOWED_ORIGINS")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    allow_credentials=True,
-)
+ALLOWED_API_KEY = get_setting("API_KEY")
+api_key_header = APIKeyHeader(name="x-api-key")
+# ALLOWED_ORIGINS = get_setting("ALLOWED_ORIGINS")
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=ALLOWED_ORIGINS,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     allow_credentials=True,
+# )
 
 @app.post("/process_action/")
-async def process_action(request: Request, authorization: str = Header(None)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-
-    if not authorization.startswith("Api-Key "):
-        raise HTTPException(status_code=403, detail="Invalid auth scheme")
-
-    api_key = authorization.removeprefix("Api-Key ").strip()
-    if api_key != API_KEY:
-        return Response(status_code=401, content="Invalid or incorrect API key provided for authorization.")
-
+async def process_action(request: Request, key: str = Security(api_key_header)):
+    print("TEST", key, ALLOWED_API_KEY)
+    if not key or key != ALLOWED_API_KEY:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid API key")
     data = await request.json()
 
     try:

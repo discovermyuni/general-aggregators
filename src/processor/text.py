@@ -11,10 +11,11 @@ from src.settings_store import get_setting_or_default
 
 from .base import Processor
 
-logger = logging.getLogger("aggregator.text_processor")
+logger = logging.getLogger("aggregator")
+logging.basicConfig(level=logging.INFO)
 
 TIMEZONE = get_setting("TIMEZONE")
-TEXT_PROCESSOR_MODEL = get_setting_or_default("TEXT_PROCESSOR_MODEL", "gpt-4-turbo")
+TEXT_PROCESSOR_MODEL = get_setting_or_default("TEXT_PROCESSOR_MODEL", "gpt-4o-mini")
 TEXT_PROCESSOR_MAX_TOKENS = get_setting_or_default("TEXT_PROCESSOR_MAX_TOKENS", 4096)
 TEXT_PROCESSOR_TEMPERATURE = get_setting_or_default("TEXT_PROCESSOR_TEMPERATURE", 0.0)
 TEXT_PROCESSOR_LLM_URL = get_setting_or_default("TEXT_PROCESSOR_LLM_URL", "https://api.openai.com/v1/chat/completions")
@@ -57,6 +58,7 @@ class TextProcessor(Processor):
             logger.exception("Error parsing JSON response", exc_info=e)
         return None
 
+
     async def get_titles(
         self, content: str, previous_titles: list[str] | None = None,
     ) -> list[str]:
@@ -78,7 +80,7 @@ class TextProcessor(Processor):
             f"{content}\n"
         )
         logger.info("COUNT PROMPT: %s", prompt)
-        payload = self._create_payload(content, prompt)
+        payload = self._create_payload(prompt)
         return await self._query_llm_for_json(payload)
 
 
@@ -87,8 +89,8 @@ class TextProcessor(Processor):
 
         return (
             f"Extract event details into JSON objects from text at the bottom and fill in the missing fields "
-            f"for each event. Return it in a JSON array.\n\n"
-            "You are already given the titles of the events that have been recognized in the text, fill in the "
+            f"for each event. Return it in a JSON array."
+            "You have been given the titles of the events in the text, fill in the "
             "details for each event based on the text below.\n\n"
             "All dates should be in the format YYYY-MM-DD hh:mm (24-hour format like 2025-02-28 13:00). "
             'If relative time is given (e.g., "tomorrow", "next week"),\n'
@@ -109,9 +111,11 @@ class TextProcessor(Processor):
             f"Text to parse:\n{content}\n"
         )
 
+
     def matches_content(self, action: SummaryAction) -> bool:
         """Check if the processor can handle the content type."""
         return super().matches_content(action) and isinstance(action.content[self.name], str)
+
 
     async def resolve(self, content: str, summaries: list[Summary]) -> bool:
         """Process the text."""
@@ -119,7 +123,7 @@ class TextProcessor(Processor):
         # TODO: make use of source background info
         prompt = self._create_prompt(content, summaries)
         logger.info("PROMPT: %s", prompt)
-        payload = self._create_payload(content, prompt)
+        payload = self._create_payload(prompt)
         data = await self._query_llm_for_json(payload)
 
         for i, obj in enumerate(data):
